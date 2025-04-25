@@ -1,77 +1,143 @@
-import type { Attribute, Common, Utils } from '@strapi/types';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Schema, Utils, UID } from "@strapi/types";
 
 export type ID = `${number}` | number;
-export type BooleanValue = boolean | 'true' | 'false' | 't' | 'f' | '1' | '0' | 1 | 0;
+export type BooleanValue =
+  | boolean
+  | "true"
+  | "false"
+  | "t"
+  | "f"
+  | "1"
+  | "0"
+  | 1
+  | 0;
 export type NumberValue = string | number;
-export type DateValue = Attribute.DateValue | number;
-export type TimeValue = Attribute.TimeValue | number;
-export type DateTimeValue = Attribute.DateTimeValue | number;
-export type TimeStampValue = Attribute.TimestampValue;
+export type DateValue = Schema.Attribute.DateValue | number;
+export type TimeValue = Schema.Attribute.TimeValue | number;
+export type DateTimeValue = Schema.Attribute.DateTimeValue | number;
+export type TimeStampValue = Schema.Attribute.TimestampValue;
 
-export type GetValues<TSchemaUID extends Common.UID.Schema> = 
-    {
-      [TKey in Attribute.GetOptionalKeys<TSchemaUID>]?: GetValue<Attribute.Get<TSchemaUID, TKey>>;
-    } & {
-      [TKey in Attribute.GetRequiredKeys<TSchemaUID>]-?: GetValue<Attribute.Get<TSchemaUID, TKey>>;
-    }
-  /**
+type OriginalGetValue<
+  TAttribute extends Schema.Attribute.Attribute,
+  TGuard = unknown,
+> = Utils.Guard.Never<
+  | Schema.Attribute.GetBigIntegerValue<TAttribute>
+  | Schema.Attribute.GetBooleanValue<TAttribute>
+  | Schema.Attribute.GetBlocksValue<TAttribute>
+  | Schema.Attribute.GetComponentValue<TAttribute>
+  | Schema.Attribute.GetDecimalValue<TAttribute>
+  | Schema.Attribute.GetDynamicZoneValue<TAttribute>
+  | Schema.Attribute.GetEnumerationValue<TAttribute>
+  | Schema.Attribute.GetEmailValue<TAttribute>
+  | Schema.Attribute.GetFloatValue<TAttribute>
+  | Schema.Attribute.GetIntegerValue<TAttribute>
+  | Schema.Attribute.GetJsonValue<TAttribute>
+  | Schema.Attribute.GetMediaValue<TAttribute>
+  | Schema.Attribute.GetPasswordValue<TAttribute>
+  | Schema.Attribute.GetRelationValue<TAttribute>
+  | Schema.Attribute.GetRichTextValue<TAttribute>
+  | Schema.Attribute.GetStringValue<TAttribute>
+  | Schema.Attribute.GetTextValue<TAttribute>
+  | Schema.Attribute.GetUIDValue<TAttribute>
+  | Schema.Attribute.GetDateValue<TAttribute>
+  | Schema.Attribute.GetDateTimeValue<TAttribute>
+  | Schema.Attribute.GetTimeValue<TAttribute>
+  | Schema.Attribute.GetTimestampValue<TAttribute>,
+  TGuard
+>;
+
+type OriginalGetAll<TSchemaUID extends UID.Schema> = Utils.Get<
+  Schema.Schemas[TSchemaUID],
+  "attributes"
+>;
+type OriginalGet<
+  TSchemaUID extends UID.Schema,
+  TKey extends OriginalGetKeys<TSchemaUID>,
+> = Utils.Get<OriginalGetAll<TSchemaUID>, TKey>;
+
+type OriginalGetRequiredKeys<TSchemaUID extends UID.Schema> =
+  Utils.Object.KeysBy<
+    OriginalGetAll<TSchemaUID>,
+    Schema.Attribute.Required,
+    string
+  >;
+type OriginalGetOptionalKeys<TSchemaUID extends UID.Schema> =
+  Utils.Object.KeysExcept<
+    OriginalGetAll<TSchemaUID>,
+    Schema.Attribute.Required,
+    string
+  >;
+
+type OriginalGetKeys<TSchemaUID extends UID.Schema> =
+  keyof OriginalGetAll<TSchemaUID> & string;
+
+export type GetValues<TSchemaUID extends UID.Schema> = {
+  [TKey in OriginalGetOptionalKeys<TSchemaUID>]?: GetValue<
+    OriginalGet<TSchemaUID, TKey>
+  >;
+} & {
+  [TKey in OriginalGetRequiredKeys<TSchemaUID>]-?: GetValue<
+    OriginalGet<TSchemaUID, TKey>
+  >;
+};
+
+/**
  * Attribute.GetValue override with extended values
  *
  * Fallback to unknown if never is found
  */
 
-export type GetValue<TAttribute extends Attribute.Attribute> = Utils.Expression.If<
-Utils.Expression.IsNotNever<TAttribute>,
-Utils.Expression.MatchFirst<
-  [
-    // Relation
-    [
-      Utils.Expression.Extends<TAttribute, Attribute.OfType<'relation'>>,
-      any // Response<RelationTarget>
-    ],
-    // DynamicZone
-    [
-      Utils.Expression.Extends<TAttribute, Attribute.OfType<'dynamiczone'>>,
-      TAttribute extends Attribute.DynamicZone<infer TComponentsUIDs>
-        ? Array<
-            // Extract tuple values to a component uid union type
-            Utils.Array.Values<TComponentsUIDs> extends infer TComponentUID
-              ? TComponentUID extends Common.UID.Component
-                ? GetValues<TComponentUID> & { __component: TComponentUID }
+export type GetValue<TAttribute> = TAttribute extends Schema.Attribute.Attribute
+  ? Utils.If<
+      Utils.IsNotNever<TAttribute>,
+      Utils.MatchFirst<
+        [
+          [Utils.Extends<TAttribute, Schema.Attribute.OfType<"relation">>, any],
+          [
+            Utils.Extends<TAttribute, Schema.Attribute.OfType<"dynamiczone">>,
+            TAttribute extends Schema.Attribute.DynamicZone<
+              infer TComponentsUIDs
+            >
+              ? Array<
+                  Utils.Array.Values<TComponentsUIDs> extends infer TComponentUID
+                    ? TComponentUID extends UID.Component
+                      ? GetValues<TComponentUID> & {
+                          __component: TComponentUID;
+                        }
+                      : never
+                    : never
+                >
+              : never,
+          ],
+          [
+            Utils.Extends<TAttribute, Schema.Attribute.OfType<"component">>,
+            TAttribute extends Schema.Attribute.Component<
+              infer TComponentUID,
+              infer TRepeatable
+            >
+              ? TComponentUID extends UID.Component
+                ? GetValues<TComponentUID> extends infer TValues
+                  ? Utils.If<TRepeatable, TValues[], TValues>
+                  : never
                 : never
-              : never
-          >
-        : never
-    ],
-    // Component
-    [
-      Utils.Expression.Extends<TAttribute, Attribute.OfType<'component'>>,
-      TAttribute extends Attribute.Component<infer TComponentUID, infer TRepeatable>
-        ? TComponentUID extends Common.UID.Component
-          ? GetValues<TComponentUID> extends infer TValues
-            ? Utils.Expression.If<TRepeatable, TValues[], TValues>
-            : never
-          : never
-        : never
-    ],
-    // Fallback
-    // If none of the above attribute type, fallback to the original Attribute.GetValue (while making sure it's an attribute)
-    [Utils.Expression.True, Attribute.GetValue<TAttribute, unknown>]
-  ],
-  unknown
->,
-unknown
->;
+              : never,
+          ],
+          [Utils.Constants.True, OriginalGetValue<TAttribute, unknown>],
+        ],
+        unknown
+      >,
+      unknown
+    >
+  : never;
 
-interface AttributesWrapper<TContentTypeUID extends Common.UID.ContentType> {
-    attributes: GetValues<TContentTypeUID>
-}
-
-export interface CollectionTypeResponse<TContentTypeUID extends Common.UID.ContentType> {
-    data: [AttributesWrapper<TContentTypeUID>]
-    meta: any
+export interface CollectionTypeResponse<
+  TContentTypeUID extends UID.ContentType,
+> {
+  data: [GetValues<TContentTypeUID>];
+  meta: any;
 }
 
 // TEST
-// declare function fetch<T extends Common.UID.ContentType>(uid: T): Promise<Response<T>>;
-// fetch('api::note.note').then(r => r.data.attributes.content)
+// declare function fetch<T extends UID.ContentType>(uid: T): Promise<Response<T>>;
+// fetch("api::book.book").then((r) => r.data.attributes.content);
