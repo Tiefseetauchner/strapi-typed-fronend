@@ -93,7 +93,16 @@ export type GetValue<TAttribute> = TAttribute extends Schema.Attribute.Attribute
       Utils.IsNotNever<TAttribute>,
       Utils.MatchFirst<
         [
-          [Utils.Extends<TAttribute, Schema.Attribute.OfType<"relation">>, any],
+          [
+            Utils.Extends<TAttribute, Schema.Attribute.OfType<"relation">>,
+            TAttribute extends Schema.Attribute.RelationWithTarget<infer _TRelationKind, infer TTargetUID>
+              ? TTargetUID extends UID.ContentType
+                ? TAttribute["target"] extends TTargetUID
+                  ? Array<GetValues<TTargetUID>>
+                  : never
+                : never
+              : any
+          ],
           [
             Utils.Extends<TAttribute, Schema.Attribute.OfType<"dynamiczone">>,
             TAttribute extends Schema.Attribute.DynamicZone<
